@@ -17,7 +17,7 @@ class CoordinatorApi(private val settings: CoordinatorSettings) {
         require(settings.accessToken.isNotBlank()) { "Coordinator access token is required." }
     }
 
-    fun progress(): Progress = get("/api/lumasift/status", Progress.serializer())
+    fun progress(): Progress = get("/api/lumasift/status", Progress.serializer()) ?: error("Coordinator returned no status payload.")
     fun plan(): Plan? = get("/api/lumasift/plan", Plan.serializer())
     fun start(selectedTypes: List<String>): Progress = post("/api/lumasift/start", json.encodeToString(StartRequest(selectedTypes)), Progress.serializer())
     fun apply(planId: String): Plan = post("/api/lumasift/plan/apply", json.encodeToString(mapOf("plan_id" to planId)), Plan.serializer())
@@ -26,7 +26,7 @@ class CoordinatorApi(private val settings: CoordinatorSettings) {
         val request = request(path).get().build()
         client.newCall(request).execute().use { response ->
             if (response.code == 404 && path.endsWith("/plan")) return null
-            val body = response.body.string()
+            val body = response.body?.string().orEmpty()
             check(response.isSuccessful) { "Coordinator request failed (${response.code}): ${body.take(240)}" }
             return json.decodeFromString(serializer, body)
         }
@@ -35,7 +35,7 @@ class CoordinatorApi(private val settings: CoordinatorSettings) {
     private fun <R> post(path: String, payload: String, serializer: kotlinx.serialization.KSerializer<R>): R {
         val body = payload.toRequestBody("application/json".toMediaType())
         client.newCall(request(path).post(body).build()).execute().use { response ->
-            val content = response.body.string()
+            val content = response.body?.string().orEmpty()
             check(response.isSuccessful) { "Coordinator request failed (${response.code}): ${content.take(240)}" }
             return json.decodeFromString(serializer, content)
         }
